@@ -67,7 +67,7 @@ def login():
     except:
         return {
             "code": "Server error",
-            "description": "An unknown error has ocurred"
+            "description": "An unknown error has occurred"
         }, 500
 
 app.run(host=os.getenv('IP', '0.0.0.0'), port=int(os.getenv('PORT', 8080)))
