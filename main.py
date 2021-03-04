@@ -41,7 +41,7 @@ def signup():
         return {
             "code": error.code,
             "description": error.description
-        }, 401
+        }, 409
 
 @app.route('/login', methods=['POST'])
 def login():
