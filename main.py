@@ -13,45 +13,52 @@ app.config["DEBUG"] = True
 
 @app.route('/signup', methods=['POST'])
 def signup():
-    json = request.json
 
+    body = request.json
     client = FaunaClient(secret=FAUNA_SECRET)
-    result = client.query(
-        q.create(
-            q.collection("Users"),
-            {
-                "data": {
-                    "user": json["user"]
-                },
-                "credentials": {
-                    "password": json["password"]
-                }
-            }
-        )
-    )
 
-    return {
-        "userId": result['ref'].id()
-    }
+    try:
+        result = client.query(
+            q.create(
+                q.collection("Users"),
+                {
+                    "data": {
+                        "username": body["username"]
+                    },
+                    "credentials": {
+                        "password": body["password"]
+                    }
+                }
+            )
+        )
+
+        return {
+            "userId": result['ref'].id()
+        }
+
+    except faunadb.errors.BadRequest as exception:
+        error = exception.errors[0]
+        return {
+            "code": error.code,
+            "description": error.description
+        }, 401
 
 @app.route('/login', methods=['POST'])
 def login():
-    json = request.json
 
+    body = request.json
     client = FaunaClient(secret=FAUNA_SECRET)
 
     try:
         result = client.query(
             q.login(
                 q.match(
-                    q.index("Users_by_user"),
-                    json["user"]
+                    q.index("Users_by_username"),
+                    body["username"]
                 ),
-                {"password": json["password"]}
+                {"password": body["password"]}
             )
         )
-
-        print(result)
 
         return {
             "secret": result['secret']
@@ -64,10 +71,38 @@ def login():
             "description": error.description
         }, 401
 
-    except:
+@app.route('/things', methods=['GET'])
+def things():
+
+    userSecret = request.headers.get('fauna-user-secret')
+    client = FaunaClient(secret=userSecret)
+
+    try:
+        result = client.query(
+            q.map_(
+                q.lambda_("ref", q.get(q.var("ref"))),
+                q.paginate(q.documents(q.collection("Things")))
+            )
+        )
+
+        things = map(
+            lambda doc: {
+                "id": doc["ref"].id(),
+                "name": doc["data"]["name"],
+                "color": doc["data"]["color"]
+            },
+            result["data"]
+        )
+
         return {
-            "code": "Server error",
-            "description": "An unknown error has occurred"
-        }, 500
+            "things": list(things)
+        }
+
+    except faunadb.errors.Unauthorized as exception:
+        error = exception.errors[0]
+        return {
+            "code": error.code,
+            "description": error.description
+        }, 401
 
 app.run(host=os.getenv('IP', '0.0.0.0'), port=int(os.getenv('PORT', 8080)))
